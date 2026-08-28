@@ -83,6 +83,13 @@
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   }
   .header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+  [data-theme="dark"] .header h1 {
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+    -webkit-text-fill-color: #f3f4f6;
+    color: #f3f4f6;
+  }
 
   .tabs {
     display: flex; background: var(--chip-bg); border-radius: 999px;
@@ -340,7 +347,7 @@
 
       <div class="chart-box">
         <h3>BMI / 体重 变化趋势
-          <span class="legend"><i style="background:#2575fc"></i>BMI<i style="background:#f59e0b"></i>体重(kg)</span>
+          <span class="legend"><i style="background:#f6f6f7"></i>BMI<i style="background:#f59e0b"></i>体重(kg)</span>
         </h3>
         <canvas id="chart" height="220"></canvas>
       </div>
