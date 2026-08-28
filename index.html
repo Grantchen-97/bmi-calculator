@@ -1196,7 +1196,10 @@
     var dataUrl = c.toDataURL("image/png");
     var fname = "bmi_" + bmi.toFixed(1) + ".png";
 
-    // 1) 桌面 exe：走 Python 原生保存对话框（WebView2 不处理 data: 下载）
+    // 1) Capacitor APK：走原生 Filesystem + Share，小米/华为/OPPO/vivo 都能呼出系统分享面板（含保存到相册）
+    if (shareViaCapacitor(dataUrl, fname, bmi)) return;
+
+    // 2) 桌面 exe：走 Python 原生保存对话框（WebView2 不处理 data: 下载）
     if (window.pywebview && window.pywebview.api && window.pywebview.api.saveImage) {
       window.pywebview.api.saveImage(dataUrl, fname).then(function (res) {
         if (!res) { showImagePreview(dataUrl, fname, bmi); return; }
@@ -1206,15 +1209,47 @@
       }).catch(function () { showImagePreview(dataUrl, fname, bmi); });
       return;
     }
-    // 2) 安卓 / 移动端：Web Share API（系统分享面板，可直接存图）
+
+    // 3) 安卓 / 移动端：Web Share API（系统分享面板，可直接存图）
     if (shareViaWebShare(dataUrl, fname, bmi)) return;
-    // 3) 兜底：尝试浏览器下载 + 弹出预览图（长按可保存）
+
+    // 4) 兜底：弹出预览图，提供多种保存方式
     showImagePreview(dataUrl, fname, bmi);
   }
 
-  // dataURL -> File -> navigator.share（安卓 WebView / 小米支持）
-  // 注意：部分系统 WebView（如小米）navigator.canShare 不存在，但 navigator.share 仍可用，
-  // 因此直接尝试 share，canShare 仅作为可选预检，不阻塞。
+  // Capacitor 原生分享：把 base64 图片写入 cache，再调用系统分享面板
+  function shareViaCapacitor(dataUrl, fname, bmi) {
+    try {
+      var cap = window.Capacitor && window.Capacitor.Plugins;
+      if (!cap || !cap.Share || !cap.Filesystem) return false;
+      var base64 = dataUrl.split(",")[1];
+      var path = "bmi-share/" + fname;
+      cap.Filesystem.writeFile({ path: path, data: base64, directory: "CACHE", recursive: true })
+        .then(function () {
+          return cap.Filesystem.getUri({ path: path, directory: "CACHE" });
+        })
+        .then(function (uriResult) {
+          return cap.Share.share({
+            title: "BMI 健康报告",
+            text: "我的 BMI：" + bmi.toFixed(1),
+            files: [uriResult.uri],
+            dialogTitle: "分享 BMI 报告"
+          });
+        })
+        .then(function () {})
+        .catch(function (err) {
+          // 用户取消不弹兜底
+          if (err && (err.message || "").toLowerCase().indexOf("cancel") !== -1) return;
+          if (err && err.message === "Share canceled") return;
+          showImagePreview(dataUrl, fname, bmi);
+        });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // dataURL -> File -> navigator.share（部分 WebView 支持）
   function shareViaWebShare(dataUrl, fname, bmi) {
     if (typeof navigator === "undefined" || !navigator.share) return false;
     try {
@@ -1226,15 +1261,27 @@
       var file = new File([blob], fname, { type: "image/png" });
       if (navigator.canShare && !navigator.canShare({ files: [file] })) return false;
       var p = navigator.share({ files: [file], title: "BMI 健康报告", text: "我的 BMI：" + bmi.toFixed(1) });
-      if (p && p.then) p.catch(function () {});
+      if (p && p.then) p.catch(function () { showImagePreview(dataUrl, fname, bmi); });
       return true;
     } catch (e) {
       return false;
     }
   }
 
-  // 兜底：弹出图片预览 + 「分享/保存图片」按钮（再次尝试系统分享，小米可存相册）
+  // dataURL -> Blob URL（长按保存兼容性比 data: 好一些）
+  function dataUrlToBlobUrl(dataUrl) {
+    var parts = dataUrl.split(",");
+    var mime = (parts[0].match(/:(.*?);/) || ["", "image/png"])[1];
+    var bin = atob(parts[1]);
+    var arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    var blob = new Blob([arr], { type: mime });
+    return URL.createObjectURL(blob);
+  }
+
+  // 兜底：弹出图片预览 + 多种保存/分享按钮
   function showImagePreview(dataUrl, fname, bmi) {
+    var blobUrl = dataUrlToBlobUrl(dataUrl);
     var m = document.getElementById("imgModal");
     if (!m) {
       m = document.createElement("div");
@@ -1243,19 +1290,30 @@
         '<div class="modal">' +
         '<h3 style="margin:0 0 10px">BMI 健康报告</h3>' +
         '<img id="shareImg" alt="BMI 报告图" style="width:100%;border-radius:12px;display:block" />' +
-        '<p style="font-size:12px;color:#9ca3af;margin:8px 0 0;text-align:center">也可长按图片选择「保存图片」</p>' +
-        '<div class="modal-actions">' +
-        '<button class="btn primary" id="shareRetry">分享 / 保存图片</button>' +
-        '<button class="btn ghost" data-close="1">关闭</button>' +
+        '<p id="shareHint" style="font-size:12px;color:#9ca3af;margin:8px 0 0;text-align:center">长按图片可尝试保存，或点击下方按钮</p>' +
+        '<div class="modal-actions" style="flex-wrap:wrap;gap:8px">' +
+        '<button class="btn primary" id="shareRetry">系统分享</button>' +
+        '<button class="btn" id="shareOpen">浏览器打开</button>' +
+        '<button class="btn ghost" id="shareClose">关闭</button>' +
         '</div></div>';
-      m.addEventListener("click", function (e) { if (e.target === m || e.target.getAttribute("data-close")) m.classList.remove("show"); });
+      m.addEventListener("click", function (e) { if (e.target === m || e.target.id === "shareClose") m.classList.remove("show"); });
       document.body.appendChild(m);
     }
-    document.getElementById("shareImg").src = dataUrl;
+    document.getElementById("shareImg").src = blobUrl;
+    document.getElementById("shareHint").textContent = "长按图片可尝试保存，或点击下方按钮";
     m.classList.add("show");
+
+    // 系统分享：再试一次 Web Share / Capacitor
     m.querySelector("#shareRetry").onclick = function () {
-      if (shareViaWebShare(dataUrl, fname, bmi)) { m.classList.remove("show"); return; }
-      appAlert("当前环境不支持系统分享，请长按上方图片后选择「保存图片」");
+      if (shareViaCapacitor(dataUrl, fname, bmi) || shareViaWebShare(dataUrl, fname, bmi)) {
+        m.classList.remove("show");
+        return;
+      }
+      document.getElementById("shareHint").textContent = "当前环境不支持系统分享，可尝试「浏览器打开」后保存，或直接截图";
+    };
+    // 浏览器打开：部分 WebView 会跳到系统浏览器，在那里可以保存
+    m.querySelector("#shareOpen").onclick = function () {
+      try { window.open(blobUrl, "_blank"); } catch (e) {}
     };
   }
 
