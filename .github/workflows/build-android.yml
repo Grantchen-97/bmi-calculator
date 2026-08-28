@@ -31,6 +31,11 @@ jobs:
         run: |
           npm install
 
+      - name: 准备 web 资源目录 (www)
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+
       - name: 生成 Android 工程并打包
         run: |
           npx cap add android || true
