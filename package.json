@@ -1,0 +1,11 @@
+{
+  "name": "bmi-calculator",
+  "version": "1.0.0",
+  "description": "BMI 健康计算器 (Web / 桌面 exe / Android apk 共用一套界面)",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/cli": "^6.1.0",
+    "@capacitor/core": "^6.1.0"
+  }
+}

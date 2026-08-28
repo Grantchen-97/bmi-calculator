@@ -1,0 +1,9 @@
+# 构建产物（APK 工作流会自己生成，无需上传）
+dist/
+build/
+node_modules/
+__pycache__/
+*.pyc
+*.toc
+*.spec.bak
+www/

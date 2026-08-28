@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>BMI 健康计算器</title>
+<style>
+  :root {
+    --bg-1: #6a11cb;
+    --bg-2: #2575fc;
+    --card: rgba(255, 255, 255, 0.96);
+    --text: #1f2937;
+    --muted: #6b7280;
+    --thin: #3b82f6;   /* 过轻 */
+    --normal: #22c55e; /* 正常 */
+    --over: #f59e0b;   /* 过重 */
+    --obese: #ef4444;  /* 肥胖 */
+    --shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+  }
+
+  body {
+    background: linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 460px;
+    background: var(--card);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 28px 26px 30px;
+    backdrop-filter: blur(10px);
+  }
+
+  .header { text-align: center; margin-bottom: 22px; }
+  .header h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    background: linear-gradient(90deg, var(--bg-1), var(--bg-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .header p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .input-wrap input {
+    width: 100%;
+    padding: 14px 56px 14px 16px;
+    font-size: 18px;
+    border: 2px solid #e5e7eb;
+    border-radius: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #fff;
+    color: var(--text);
+  }
+  .input-wrap input:focus {
+    border-color: var(--bg-2);
+    box-shadow: 0 0 0 4px rgba(37, 117, 252, 0.15);
+  }
+  .input-wrap .unit {
+    position: absolute;
+    right: 16px;
+    font-size: 14px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 15px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--bg-1), var(--bg-2));
+    box-shadow: 0 10px 24px rgba(37, 117, 252, 0.35);
+    transition: transform 0.12s ease, box-shadow 0.2s ease;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 6px 16px rgba(37, 117, 252, 0.3); }
+
+  .result {
+    margin-top: 24px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    pointer-events: none;
+  }
+  .result.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+  .bmi-value {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .bmi-value .num {
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1;
+    transition: color 0.3s;
+  }
+  .bmi-value .unit { font-size: 16px; color: var(--muted); margin-left: 4px; }
+
+  .badge {
+    display: inline-block;
+    padding: 6px 18px;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    margin: 4px auto 0;
+  }
+  .badge-wrap { text-align: center; }
+
+  /* BMI 刻度条 */
+  .scale {
+    margin: 22px 4px 6px;
+    position: relative;
+    height: 14px;
+    border-radius: 999px;
+    /* 按 BMI 15~40 线性映射：18.5=14%, 24=36%, 28=52% */
+    background: linear-gradient(90deg,
+      var(--thin) 0%, var(--thin) 14%,
+      var(--normal) 14%, var(--normal) 36%,
+      var(--over) 36%, var(--over) 52%,
+      var(--obese) 52%, var(--obese) 100%);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .marker {
+    position: absolute;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border: 3px solid #374151;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    left: 0%;
+    transition: left 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  .ticks {
+    position: relative;
+    height: 18px;
+    font-size: 11px;
+    color: var(--muted);
+    margin: 6px 2px 0;
+  }
+  .ticks span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+  }
+
+  .info {
+    margin-top: 20px;
+    background: #f3f4f6;
+    border-radius: 14px;
+    padding: 14px 16px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #374151;
+  }
+  .info .row { display: flex; justify-content: space-between; }
+  .info .row b { color: var(--text); }
+  .info .hint { margin-top: 8px; font-size: 12px; color: var(--muted); }
+
+  .error {
+    color: #ef4444;
+    font-size: 13px;
+    margin-top: 10px;
+    text-align: center;
+    min-height: 18px;
+  }
+
+  /* 顶部标签页 */
+  .tabs {
+    display: flex;
+    background: #eef2f7;
+    border-radius: 999px;
+    padding: 4px;
+    margin: 4px 0 22px;
+    position: relative;
+  }
+  .tab-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 10px 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--muted);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color 0.2s;
+    z-index: 1;
+  }
+  .tab-btn.active {
+    color: #fff;
+  }
+  .tab-indicator {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    width: calc(50% - 4px);
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--bg-1), var(--bg-2));
+    box-shadow: 0 6px 16px rgba(37, 117, 252, 0.35);
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* 历史页 */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .summary .card {
+    background: #f3f4f6;
+    border-radius: 14px;
+    padding: 12px 8px;
+    text-align: center;
+  }
+  .summary .card .v { font-size: 20px; font-weight: 800; }
+  .summary .card .k { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .chart-box {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 14px 12px 6px;
+    margin-bottom: 16px;
+  }
+  .chart-box h3 { margin: 0 0 8px; font-size: 14px; color: var(--text); }
+  #chart { width: 100%; display: block; }
+
+  .table-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .table-head h3 { margin: 0; font-size: 14px; }
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--bg-2);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+  .link-btn.danger { color: #ef4444; }
+
+  .records {
+    max-height: 240px;
+    overflow-y: auto;
+    border-radius: 12px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td {
+    padding: 9px 8px;
+    text-align: center;
+    border-bottom: 1px solid #eef0f3;
+  }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: #fff; }
+  td .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  td .del {
+    color: #ef4444;
+    cursor: pointer;
+    font-weight: 700;
+    border: none;
+    background: none;
+    font-size: 13px;
+  }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 36px 10px;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .empty .big { font-size: 40px; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1>BMI 健康计算器</h1>
+      <p>输入身高与体重，了解你的健康体重范围</p>
+    </div>
+
+    <div class="tabs">
+      <div class="tab-indicator" id="tabIndicator"></div>
+      <button class="tab-btn active" id="tabCalc">计算器</button>
+      <button class="tab-btn" id="tabHistory">历史记录</button>
+    </div>
+
+    <div id="calcView">
+    <div class="field">
+      <label for="height">身高</label>
+      <div class="input-wrap">
+        <input id="height" type="number" inputmode="decimal" placeholder="例如 1.70" step="0.01" min="0.5" max="2.5" />
+        <span class="unit">米 (m)</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="weight">体重</label>
+      <div class="input-wrap">
+        <input id="weight" type="number" inputmode="decimal" placeholder="例如 65" step="0.1" min="10" max="300" />
+        <span class="unit">公斤 (kg)</span>
+      </div>
+    </div>
+
+    <button class="btn" id="calcBtn">计 算 BMI</button>
+    <div class="error" id="error"></div>
+
+    <div class="result" id="result">
+      <div class="bmi-value">
+        <span class="num" id="bmiNum">0.0</span><span class="unit">kg/m²</span>
+        <div class="badge-wrap"><span class="badge" id="badge">—</span></div>
+      </div>
+
+      <div class="scale">
+        <div class="marker" id="marker"></div>
+      </div>
+      <div class="ticks">
+        <span style="left:0%">15</span>
+        <span style="left:14%">18.5</span>
+        <span style="left:36%">24</span>
+        <span style="left:52%">28</span>
+        <span style="left:100%">40+</span>
+      </div>
+
+      <div class="info">
+        <div class="row"><span>你的 BMI</span><b id="infoBmi">—</b></div>
+        <div class="row"><span>健康评级</span><b id="infoLevel">—</b></div>
+        <div class="row"><span>标准体重 (BMI 24)</span><b id="infoStd">—</b></div>
+        <div class="hint" id="hint"></div>
+      </div>
+    </div>
+    </div><!-- /calcView -->
+
+    <div id="historyView" style="display:none">
+      <div class="summary">
+        <div class="card"><div class="v" id="sumCount">0</div><div class="k">记录次数</div></div>
+        <div class="card"><div class="v" id="sumLatest">—</div><div class="k">最新 BMI</div></div>
+        <div class="card"><div class="v" id="sumAvg">—</div><div class="k">平均 BMI</div></div>
+      </div>
+
+      <div class="chart-box">
+        <h3>BMI 变化趋势</h3>
+        <canvas id="chart" height="220"></canvas>
+      </div>
+
+      <div class="table-head">
+        <h3>历史记录</h3>
+        <div>
+          <button class="link-btn" id="exportBtn">导出 CSV</button>
+          <button class="link-btn danger" id="clearBtn">清空</button>
+        </div>
+      </div>
+      <div class="records">
+        <table>
+          <thead>
+            <tr><th>时间</th><th>身高(m)</th><th>体重(kg)</th><th>BMI</th><th>评级</th><th></th></tr>
+          </thead>
+          <tbody id="recBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="emptyState" style="display:none">
+        <div class="big">📊</div>
+        <div>暂无记录</div>
+        <div>返回“计算器”输入身高体重，<br>每次计算结果会自动保存到这里</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // 中国成人 BMI 分级标准（与原 bmi.py 一致）
+  // <18.5 过轻 | 18.5~24 正常 | 24~28 过重 | >=28 肥胖
+  var COLORS = {
+    thin:   "#3b82f6",
+    normal: "#22c55e",
+    over:   "#f59e0b",
+    obese:  "#ef4444"
+  };
+
+  function classify(bmi) {
+    if (bmi < 18.5) return { label: "过轻", color: COLORS.thin,  hint: "体重偏轻，建议均衡营养、适度增重。" };
+    if (bmi < 24)   return { label: "正常", color: COLORS.normal, hint: "体重在健康范围内，继续保持良好习惯！" };
+    if (bmi < 28)   return { label: "过重", color: COLORS.over,  hint: "体重略高，建议控制饮食、增加运动。" };
+    return            { label: "肥胖", color: COLORS.obese, hint: "体重过高，建议咨询专业人士制定减重计划。" };
+  }
+
+  // 将 BMI 值映射到刻度条位置 (0%~100%)。范围 15~40 线性映射。
+  function bmiToPercent(bmi) {
+    var min = 15, max = 40;
+    var p = (bmi - min) / (max - min) * 100;
+    return Math.max(0, Math.min(100, p));
+  }
+
+  function calc() {
+    var errEl = document.getElementById("error");
+    var h = parseFloat(document.getElementById("height").value);
+    var w = parseFloat(document.getElementById("weight").value);
+    errEl.textContent = "";
+
+    if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+      errEl.textContent = "请输入有效的身高和体重";
+      return;
+    }
+    if (h > 3) {
+      errEl.textContent = "身高请以“米”为单位输入（如 1.70）";
+      return;
+    }
+
+    // 与原程序一致：bmi = weight / height^2，保留 2 位小数
+    var bmi = w / (h * h);
+    var bmi2 = Math.round(bmi * 100) / 100;
+    var std = 24 * h * h; // 标准体重
+
+    var c = classify(bmi);
+
+    document.getElementById("bmiNum").textContent = bmi2.toFixed(2);
+    document.getElementById("bmiNum").style.color = c.color;
+
+    var badge = document.getElementById("badge");
+    badge.textContent = c.label;
+    badge.style.background = c.color;
+
+    document.getElementById("marker").style.left = bmiToPercent(bmi) + "%";
+
+    document.getElementById("infoBmi").textContent = bmi2.toFixed(2) + " kg/m²";
+    document.getElementById("infoLevel").textContent = c.label;
+    document.getElementById("infoStd").textContent = std.toFixed(2) + " 公斤";
+    document.getElementById("hint").textContent = c.hint;
+
+    document.getElementById("result").classList.add("show");
+
+    // 保存本次记录到本地，供“历史记录”页统计与折线图使用
+    saveRecord({
+      ts: Date.now(),
+      height: h,
+      weight: w,
+      bmi: bmi2,
+      label: c.label
+    });
+  }
+
+  document.getElementById("calcBtn").addEventListener("click", calc);
+  // 回车快速计算
+  ["height", "weight"].forEach(function (id) {
+    document.getElementById(id).addEventListener("keydown", function (e) {
+      if (e.key === "Enter") calc();
+    });
+  });
+
+  // ===== 历史记录：本地存储 + 折线图 =====
+  var STORAGE_KEY = "bmi_records_v1";
+
+  function loadRecords() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function saveRecords(list) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  function fmtTime(ts) {
+    var d = new Date(ts);
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+           " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+
+  function saveRecord(rec) {
+    var list = loadRecords();
+    list.push(rec);
+    saveRecords(list);
+  }
+
+  function switchTab(which) {
+    var calc = which === "calc";
+    document.getElementById("calcView").style.display = calc ? "block" : "none";
+    document.getElementById("historyView").style.display = calc ? "none" : "block";
+    document.getElementById("tabCalc").classList.toggle("active", calc);
+    document.getElementById("tabHistory").classList.toggle("active", !calc);
+    document.getElementById("tabIndicator").style.transform =
+      calc ? "translateX(0)" : "translateX(100%)";
+    if (!calc) renderHistory();
+  }
+
+  function renderHistory() {
+    var list = loadRecords();
+    document.getElementById("sumCount").textContent = list.length;
+    var empty = document.getElementById("emptyState");
+    var tableWrap = document.querySelector(".records");
+    var chartBox = document.querySelector(".chart-box");
+    var tableHead = document.querySelector(".table-head");
+
+    if (list.length === 0) {
+      empty.style.display = "block";
+      tableWrap.style.display = "none";
+      chartBox.style.display = "none";
+      tableHead.style.display = "none";
+      document.getElementById("sumLatest").textContent = "—";
+      document.getElementById("sumAvg").textContent = "—";
+      return;
+    }
+    empty.style.display = "none";
+    tableWrap.style.display = "block";
+    chartBox.style.display = "block";
+    tableHead.style.display = "flex";
+
+    var bmis = list.map(function (r) { return r.bmi; });
+    var avg = bmis.reduce(function (a, b) { return a + b; }, 0) / bmis.length;
+    document.getElementById("sumLatest").textContent = bmis[bmis.length - 1].toFixed(1);
+    document.getElementById("sumAvg").textContent = avg.toFixed(1);
+
+    var body = document.getElementById("recBody");
+    body.innerHTML = "";
+    for (var i = list.length - 1; i >= 0; i--) {
+      var r = list[i];
+      var c = classify(r.bmi);
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + fmtTime(r.ts) + "</td>" +
+        "<td>" + r.height.toFixed(2) + "</td>" +
+        "<td>" + r.weight.toFixed(1) + "</td>" +
+        "<td><b>" + r.bmi.toFixed(2) + "</b></td>" +
+        "<td><span class='pill' style='background:" + c.color + "'>" + c.label + "</span></td>" +
+        "<td><button class='del' data-idx='" + i + "'>删除</button></td>";
+      body.appendChild(tr);
+    }
+    body.querySelectorAll(".del").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var idx = parseInt(btn.getAttribute("data-idx"), 10);
+        var l = loadRecords();
+        l.splice(idx, 1);
+        saveRecords(l);
+        renderHistory();
+      });
+    });
+
+    drawChart(list);
+  }
+
+  function drawChart(list) {
+    var canvas = document.getElementById("chart");
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth || 400;
+    var cssH = 220;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    var padL = 34, padR = 12, padT = 14, padB = 26;
+    var plotW = cssW - padL - padR;
+    var plotH = cssH - padT - padB;
+
+    var bmis = list.map(function (r) { return r.bmi; });
+    var minB = Math.min.apply(null, bmis.concat([15]));
+    var maxB = Math.max.apply(null, bmis.concat([40]));
+    var range = (maxB - minB) || 1;
+    minB = Math.max(0, minB - range * 0.15);
+    maxB = maxB + range * 0.15;
+
+    function yOf(b) { return padT + plotH * (1 - (b - minB) / (maxB - minB)); }
+    function xOf(i) {
+      if (list.length === 1) return padL + plotW / 2;
+      return padL + plotW * (i / (list.length - 1));
+    }
+
+    // 参考线 18.5 / 24 / 28
+    ctx.font = "10px sans-serif";
+    [{ v: 18.5, c: COLORS.thin }, { v: 24, c: COLORS.normal }, { v: 28, c: COLORS.obese }].forEach(function (r) {
+      if (r.v >= minB && r.v <= maxB) {
+        var y = yOf(r.v);
+        ctx.strokeStyle = r.c + "55";
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(padL + plotW, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = r.c;
+        ctx.textAlign = "right";
+        ctx.fillText(String(r.v), padL - 4, y + 3);
+      }
+    });
+
+    // Y 轴刻度
+    ctx.fillStyle = "#9ca3af";
+    ctx.textAlign = "right";
+    [minB, (minB + maxB) / 2, maxB].forEach(function (v) {
+      ctx.fillText(v.toFixed(0), padL - 4, yOf(v) + 3);
+    });
+
+    // 折线
+    ctx.strokeStyle = "#2575fc";
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    list.forEach(function (r, i) {
+      var x = xOf(i), y = yOf(r.bmi);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // 数据点
+    list.forEach(function (r, i) {
+      var x = xOf(i), y = yOf(r.bmi);
+      ctx.fillStyle = classify(r.bmi).color;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+
+    // X 轴首尾时间
+    if (list.length >= 1) {
+      ctx.fillStyle = "#9ca3af";
+      ctx.textAlign = "center";
+      ctx.fillText(fmtTime(list[0].ts).slice(5), xOf(0), cssH - 8);
+      if (list.length > 1) {
+        ctx.fillText(fmtTime(list[list.length - 1].ts).slice(5), xOf(list.length - 1), cssH - 8);
+      }
+    }
+  }
+
+  function exportCSV() {
+    var list = loadRecords();
+    if (list.length === 0) return;
+    var rows = [["时间", "身高(m)", "体重(kg)", "BMI", "评级"]];
+    list.forEach(function (r) {
+      rows.push([fmtTime(r.ts), r.height.toFixed(2), r.weight.toFixed(1), r.bmi.toFixed(2), classify(r.bmi).label]);
+    });
+    var csv = rows.map(function (row) { return row.join(","); }).join("\n");
+    var blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "bmi_history.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  function clearAll() {
+    if (confirm("确定清空所有历史记录？此操作不可恢复。")) {
+      saveRecords([]);
+      renderHistory();
+    }
+  }
+
+  document.getElementById("tabCalc").addEventListener("click", function () { switchTab("calc"); });
+  document.getElementById("tabHistory").addEventListener("click", function () { switchTab("history"); });
+  document.getElementById("exportBtn").addEventListener("click", exportCSV);
+  document.getElementById("clearBtn").addEventListener("click", clearAll);
+  window.addEventListener("resize", function () {
+    if (document.getElementById("historyView").style.display !== "none") renderHistory();
+  });
+</script>
+</body>
+</html>
