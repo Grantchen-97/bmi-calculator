@@ -214,8 +214,10 @@
 
   .table-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
   .table-head h3 { margin: 0; font-size: 14px; }
-  .link-btn { background: none; border: none; color: var(--bg-2); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 2px 5px; }
+  .link-btn { background: none; border: none; color: var(--bg-2); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 2px 5px; transition: opacity .15s; }
+  .link-btn:hover { opacity: 0.8; text-decoration: underline; }
   .link-btn.danger { color: #ef4444; }
+  [data-theme="dark"] .link-btn:not(.danger) { color: #60a5fa; }
 
   .records { max-height: 230px; overflow-y: auto; border-radius: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
