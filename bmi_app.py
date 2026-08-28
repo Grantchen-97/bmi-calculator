@@ -4,6 +4,7 @@ BMI 计算器 —— 桌面端封装
 使用 pywebview 将 index.html 包装为原生窗口程序。
 打包命令见 build_exe.spec / BUILD.md。
 """
+import base64
 import os
 import sys
 import webview
@@ -21,6 +22,53 @@ class BmiApi:
             path = os.path.join(self.storage_path, "bmi_history.json")
             with open(path, "w", encoding="utf-8") as f:
                 f.write(data)
+            return {"ok": True, "path": path}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def _pick_save_path(self, suggested_name, file_types):
+        """弹出系统原生保存对话框，返回用户选择的路径；取消返回 None。"""
+        try:
+            if not webview.windows:
+                return None
+            result = webview.windows[0].create_file_dialog(
+                webview.SAVE_DIALOG,
+                save_filename=suggested_name,
+                file_types=file_types,
+            )
+            if isinstance(result, (list, tuple)):
+                result = result[0] if result else None
+            return result or None
+        except Exception:
+            return None
+
+    def saveImage(self, data_url, suggested_name):
+        """保存分享图片：前端传 dataURL，经原生对话框落盘。"""
+        try:
+            _, b64 = data_url.split(",", 1)
+            data = base64.b64decode(b64)
+        except Exception:
+            return {"ok": False, "error": "图片数据解析失败"}
+        path = self._pick_save_path(suggested_name, ("PNG 图片 (*.png)", "所有文件 (*.*)"))
+        if not path:
+            return {"cancelled": True}
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        try:
+            with open(path, "wb") as f:
+                f.write(data)
+            return {"ok": True, "path": path}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def saveFile(self, filename, text):
+        """保存 CSV/JSON 导出文件：经原生对话框落盘。"""
+        path = self._pick_save_path(filename, ("所有文件 (*.*)",))
+        if not path:
+            return {"cancelled": True}
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
             return {"ok": True, "path": path}
         except Exception as e:
             return {"ok": False, "error": str(e)}
