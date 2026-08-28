@@ -430,8 +430,60 @@
     </div>
   </div>
 
+  <!-- 通用弹窗（替代原生 alert/confirm/prompt，兼容 pywebview） -->
+  <div class="modal-mask" id="dialogModal">
+    <div class="modal">
+      <h3 id="dialogTitle">提示</h3>
+      <p id="dialogMsg" style="font-size:13.5px;color:var(--text);margin:0 0 12px;line-height:1.6"></p>
+      <input id="dialogInput" type="text" style="display:none;width:100%;padding:10px;border:2px solid var(--field-border);border-radius:10px;background:var(--field-bg);color:var(--text);margin-bottom:12px" />
+      <div class="modal-actions">
+        <button class="cancel" id="dialogCancel">取消</button>
+        <button class="primary" id="dialogOk">确定</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   "use strict";
+
+  // ===================== 通用弹窗（替代原生 alert/confirm/prompt） =====================
+  // pywebview/WebView2 默认不实现原生 alert/confirm/prompt，这里用应用内弹窗兼容
+  var _dlg = { resolve: null, withInput: false };
+  function _showDialog(opts) {
+    return new Promise(function (resolve) {
+      _dlg.resolve = resolve;
+      _dlg.withInput = !!opts.value;
+      document.getElementById("dialogTitle").textContent = opts.title || "提示";
+      document.getElementById("dialogMsg").textContent = opts.message || "";
+      var input = document.getElementById("dialogInput");
+      if (_dlg.withInput) {
+        input.style.display = "block";
+        input.value = opts.value || "";
+      } else {
+        input.style.display = "none";
+        input.value = "";
+      }
+      document.getElementById("dialogOk").textContent = opts.okText || "确定";
+      document.getElementById("dialogCancel").style.display = (opts.cancel === false) ? "none" : "inline-block";
+      document.getElementById("dialogModal").classList.add("show");
+      if (_dlg.withInput) setTimeout(function () { input.focus(); input.select(); }, 50);
+    });
+  }
+  function _closeDialog(val) {
+    document.getElementById("dialogModal").classList.remove("show");
+    if (_dlg.resolve) { _dlg.resolve(val); _dlg.resolve = null; }
+  }
+  document.getElementById("dialogOk").addEventListener("click", function () {
+    if (_dlg.withInput) _closeDialog(document.getElementById("dialogInput").value.trim());
+    else _closeDialog(true);
+  });
+  document.getElementById("dialogCancel").addEventListener("click", function () { _closeDialog(_dlg.withInput ? null : false); });
+  document.getElementById("dialogModal").addEventListener("click", function (e) { if (e.target === this && _dlg.withInput === false) _closeDialog(false); });
+
+  function appAlert(msg) { return _showDialog({ title: "提示", message: msg, okText: "确定", cancel: false }); }
+  function appConfirm(msg) { return _showDialog({ title: "请确认", message: msg, okText: "确定", cancel: true }); }
+  function appPrompt(msg, def) { return _showDialog({ title: "输入", message: msg, value: def || "", okText: "确定", cancel: true }); }
+
 
   // ===================== 数据存储 =====================
   var APP_KEY = "bmi_app_v2";
@@ -743,12 +795,13 @@
   }
 
   function addProfile() {
-    var name = prompt("新档案名称：", "家人" + (state.profiles.length + 1));
-    if (!name) return;
-    var p = { id: uid(), name: name, gender: "male", birthYear: null, targetBmi: 22, records: [] };
-    state.profiles.push(p);
-    state.currentProfileId = p.id;
-    saveState(); renderProfiles();
+    appPrompt("新档案名称：", "家人" + (state.profiles.length + 1)).then(function (name) {
+      if (!name) return;
+      var p = { id: uid(), name: name, gender: "male", birthYear: null, targetBmi: 22, records: [] };
+      state.profiles.push(p);
+      state.currentProfileId = p.id;
+      saveState(); renderProfiles();
+    });
   }
 
   function openManage() {
@@ -763,11 +816,13 @@
       var del = document.createElement("button");
       del.textContent = "删除"; del.className = "link-btn danger";
       del.onclick = function () {
-        if (state.profiles.length <= 1) { alert("至少保留一个档案"); return; }
-        if (!confirm("删除档案「" + p.name + "」及其所有记录？")) return;
-        state.profiles = state.profiles.filter(function (x) { return x.id !== p.id; });
-        if (state.currentProfileId === p.id) state.currentProfileId = state.profiles[0].id;
-        saveState(); renderProfiles(); closeModal("manageModal");
+        if (state.profiles.length <= 1) { appAlert("至少保留一个档案"); return; }
+        appConfirm("删除档案「" + p.name + "」及其所有记录？").then(function (ok) {
+          if (!ok) return;
+          state.profiles = state.profiles.filter(function (x) { return x.id !== p.id; });
+          if (state.currentProfileId === p.id) state.currentProfileId = state.profiles[0].id;
+          saveState(); renderProfiles(); closeModal("manageModal");
+        });
       };
       row.appendChild(name); row.appendChild(del);
       box.appendChild(row);
@@ -981,7 +1036,8 @@
       try {
         var data = JSON.parse(reader.result);
         if (data && data.profiles) {
-          if (confirm("导入将合并到当前数据，是否继续？")) {
+          appConfirm("导入将合并到当前数据，是否继续？").then(function (ok) {
+            if (!ok) return;
             // 合并档案：同名则追加记录
             data.profiles.forEach(function (np) {
               var ex = state.profiles.filter(function (p) { return p.name === np.name; })[0];
@@ -989,18 +1045,19 @@
               else state.profiles.push(np);
             });
             saveState(); renderProfiles(); renderHistory();
-            alert("导入成功");
-          }
-        } else { alert("文件格式不正确"); }
-      } catch (e) { alert("解析失败：" + e.message); }
+            appAlert("导入成功");
+          });
+        } else { appAlert("文件格式不正确"); }
+      } catch (e) { appAlert("解析失败：" + e.message); }
     };
     reader.readAsText(file);
   }
 
   function clearAll() {
-    if (confirm("确定清空「" + current().name + "」的所有历史记录？")) {
+    appConfirm("确定清空「" + current().name + "」的所有历史记录？").then(function (ok) {
+      if (!ok) return;
       current().records = []; saveState(); renderProfiles(); renderHistory();
-    }
+    });
   }
 
   // ===================== 提醒（轻量版） =====================
@@ -1018,7 +1075,7 @@
         if (Notification && Notification.permission === "granted") new Notification("BMI 提醒", { body: msg });
         else if (Notification && Notification.permission !== "denied") Notification.requestPermission();
       } catch (e) {}
-      alert(msg);
+      appAlert(msg);
     }
   }
 
@@ -1105,7 +1162,7 @@
   }
 
   function shareCard() {
-    if (!document.getElementById("result").classList.contains("show")) { alert("请先计算一次 BMI"); return; }
+    if (!document.getElementById("result").classList.contains("show")) { appAlert("请先计算一次 BMI"); return; }
     var bmi = parseFloat(document.getElementById("bmiNum").textContent);
     var label = document.getElementById("badge").textContent;
     var color = document.getElementById("bmiNum").style.color || "#2575fc";
