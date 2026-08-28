@@ -8,6 +8,24 @@ import os
 import sys
 import webview
 
+
+class BmiApi:
+    """暴露给前端 JS 的桥：自动把数据备份到本地文件（换电脑可带走）。"""
+    def __init__(self, storage_path):
+        self.storage_path = storage_path
+
+    def autoBackup(self, data):
+        try:
+            if not self.storage_path:
+                return {"ok": False, "error": "no storage path"}
+            path = os.path.join(self.storage_path, "bmi_history.json")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(data)
+            return {"ok": True, "path": path}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 HTML_PATH = os.path.join(BASE_DIR, "index.html")
 
@@ -30,6 +48,8 @@ def main():
     storage_path = os.path.join(appdata, "BMI Calculator")
     os.makedirs(storage_path, exist_ok=True)
 
+    api = BmiApi(storage_path)
+
     webview.create_window(
         "BMI 健康计算器",
         url=url,
@@ -39,6 +59,7 @@ def main():
         min_size=(360, 600),
         text_select=False,
         confirm_close=False,
+        js_api=api,
     )
     webview.start(private_mode=False, storage_path=storage_path)
 

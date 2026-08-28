@@ -113,3 +113,29 @@ git push -u origin main
 | 构建红叉失败 | 点进任务看红色日志；多半是网络拉取依赖超时，点 **Re-run jobs** 重试一次 |
 | 手机安装提示“已损坏/无法安装” | 确认手机系统版本 ≥ 7.0（Android 7+）；调试版 APK 需允许“未知来源” |
 | 想上架应用商店 | 调试版 `app-debug.apk` 不能上架，需要用 Android Studio 生成签名后的 release 包（见 BUILD.md） |
+
+---
+
+## 八、产出已签名的 release APK（可选）
+
+默认出的是 `app-debug.apk`（调试签名，不能上架）。想要**正式签名**的 `app-release.apk`，用 GitHub Secrets 即可让云端自动签名，无需本机装 Android Studio：
+
+1. 本机用 `keytool` 生成签名密钥（一次性）：
+   ```bash
+   keytool -genkeypair -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias bmi
+   ```
+   会提示输入 keystore 密码、key 密码、姓名等信息，请牢记密码。
+2. 把 `release-key.jks` 转成 base64：
+   ```bash
+   base64 -w0 release-key.jks > key.b64
+   cat key.b64   # 复制这一长串
+   ```
+3. 在 GitHub 仓库 `Settings → Secrets and variables → Actions` 里新增 4 个 secret：
+   - `KEYSTORE_BASE64`：第 2 步复制的那串 base64
+   - `KEY_ALIAS`：`bmi`（即上面的 alias）
+   - `KEY_PASSWORD`：key 密码
+   - `KEYSTORE_PASSWORD`：keystore 密码
+4. 回到 **Actions → Build BMI APK → Run workflow** 重新跑一次。
+5. 下载的 Artifacts 里即为 **`app-release.apk`**（已正式签名，可分发/上架测试）。
+
+> 未配置这 4 个 secret 时，工作流仍正常产出 `app-debug.apk`，不影响使用。
