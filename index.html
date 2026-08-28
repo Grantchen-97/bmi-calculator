@@ -9,7 +9,7 @@
     --bg-1: #6a11cb;
     --bg-2: #2575fc;
     --card: rgba(255, 255, 255, 0.97);
-    --text: #1f2937;
+    --text: #01041b;
     --muted: #6b7280;
     --field-bg: #fff;
     --field-border: #e5e7eb;
@@ -172,6 +172,21 @@
   .info .row b { color: var(--text); }
   .info .hint { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 
+  /* 运动与饮食建议 */
+  .tips { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tips .panel { background: var(--info-bg); border-radius: 14px; padding: 12px 13px; border-top: 3px solid var(--tip-accent, #3b82f6); }
+  .tips .panel h4 { margin: 0 0 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .tips .panel.exercise { --tip-accent: #6366f1; }
+  .tips .panel.diet { --tip-accent: #10b981; }
+  .tips ul { margin: 0; padding-left: 0; list-style: none; }
+  .tips li { font-size: 12px; line-height: 1.6; color: var(--text); padding: 4px 0 4px 16px; position: relative; }
+  .tips li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--tip-accent); }
+  .tips .li-title { font-weight: 700; }
+  .tips-foot { margin-top: 10px; font-size: 10.5px; color: var(--muted); text-align: center; line-height: 1.5; }
+  @media (max-width: 420px) {
+    .tips { grid-template-columns: 1fr; }
+  }
+
   /* 历史页 */
   .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
   .summary .card { background: var(--info-bg); border-radius: 14px; padding: 10px 6px; text-align: center; }
@@ -316,6 +331,17 @@
           <div class="row"><span>估算体脂率</span><b id="infoFat">—</b></div>
           <div class="hint" id="hint"></div>
         </div>
+        <div class="tips">
+          <div class="panel exercise">
+            <h4>🏃 推荐运动</h4>
+            <ul id="exList"></ul>
+          </div>
+          <div class="panel diet">
+            <h4>🥗 饮食建议</h4>
+            <ul id="dietList"></ul>
+          </div>
+        </div>
+        <div class="tips-foot">以上建议为通用健康参考，不替代专业医疗/营养指导；如有疾病请遵医嘱。</div>
       </div>
     </div>
 
@@ -486,16 +512,112 @@
   var COLORS = { thin: "#3b82f6", normal: "#22c55e", over: "#f59e0b", obese: "#ef4444" };
   var STD = {
     cn: [
-      { max: 18.5, label: "过轻", color: COLORS.thin,  hint: "体重偏轻，建议均衡营养、适度增重。" },
-      { max: 24,   label: "正常", color: COLORS.normal, hint: "体重在健康范围内，继续保持良好习惯！" },
-      { max: 28,   label: "过重", color: COLORS.over,  hint: "体重略高，建议控制饮食、增加运动。" },
-      { max: 999,  label: "肥胖", color: COLORS.obese, hint: "体重过高，建议咨询专业人士制定减重计划。" }
+      { max: 18.5, label: "过轻", color: COLORS.thin,  hint: "体重偏轻，建议均衡营养、适度增重。",
+        exercise: [
+          ["力量训练", "哑铃、杠铃、器械训练，以增肌为主，每周 3 次"],
+          ["自重训练", "俯卧撑、深蹲、引体向上，循序渐进加量"],
+          ["适度有氧", "快走、慢跑，避免过量消耗导致更瘦"]
+        ],
+        diet: [
+          ["提高热量", "在均衡基础上适度增加总热量摄入"],
+          ["优质蛋白", "鸡蛋、牛奶、瘦肉、鱼虾、豆制品"],
+          ["碳水不能少", "主食保证能量，训练后补蛋白+碳水"],
+          ["少食多餐", "胃口小可分成 5-6 餐"]
+        ]
+      },
+      { max: 24,   label: "正常", color: COLORS.normal, hint: "体重在健康范围内，继续保持良好习惯！",
+        exercise: [
+          ["有氧", "快走/骑车/游泳，每周约 150 分钟中等强度"],
+          ["力量训练", "每周 2 次维持肌肉量，提升代谢"],
+          ["柔韧放松", "瑜伽、拉伸，改善体态与恢复"]
+        ],
+        diet: [
+          ["均衡搭配", "谷薯+蛋白+蔬果+优质脂肪都要有"],
+          ["七分饱", "控制油盐糖，避免暴饮暴食"],
+          ["多喝水", "少喝含糖饮料，每天 1.5-2L"],
+          ["规律三餐", "不跳过早餐，稳定血糖"]
+        ]
+      },
+      { max: 28,   label: "过重", color: COLORS.over,  hint: "体重略高，建议控制饮食、增加运动。",
+        exercise: [
+          ["有氧为主", "快走/慢跑/游泳/骑车，每周 3-5 次，每次 30-45 分钟"],
+          ["HIIT", "身体允许可做高强度间歇，效率更高"],
+          ["力量保肌", "适度力量训练，提高基础代谢"]
+        ],
+        diet: [
+          ["适度缺口", "每天减少约 300-500 kcal 热量"],
+          ["多蔬果粗粮", "增加膳食纤维与饱腹感"],
+          ["少油糖", "戒油炸、甜点、含糖饮料"],
+          ["优质蛋白优先", "减少精制碳水比例"]
+        ]
+      },
+      { max: 999,  label: "肥胖", color: COLORS.obese, hint: "体重过高，建议咨询专业人士制定减重计划。",
+        exercise: [
+          ["低冲击有氧", "游泳、骑车、水中行走，保护关节"],
+          ["从步行起步", "每日 10-15 分钟，循序渐进增加"],
+          ["专业指导", "在教练/康复师指导下做力量训练"]
+        ],
+        diet: [
+          ["严控热量", "建议咨询营养师定制个性化方案"],
+          ["高纤维", "多吃蔬菜粗粮，减少高油高糖"],
+          ["规律三餐", "避免夜宵与暴饮暴食"],
+          ["记录饮食", "用 APP 记录有助于控制摄入"]
+        ]
+      }
     ],
     who: [
-      { max: 18.5, label: "偏瘦", color: COLORS.thin,  hint: "体重偏轻，注意营养摄入。" },
-      { max: 25,   label: "正常", color: COLORS.normal, hint: "体重在健康范围内，继续保持！" },
-      { max: 30,   label: "超重", color: COLORS.over,  hint: "体重偏高，建议增加运动、控制热量。" },
-      { max: 999,  label: "肥胖", color: COLORS.obese, hint: "体重过高，建议寻求专业指导。" }
+      { max: 18.5, label: "偏瘦", color: COLORS.thin,  hint: "体重偏轻，注意营养摄入。",
+        exercise: [
+          ["力量训练", "哑铃、杠铃、器械，以增肌为主"],
+          ["自重训练", "俯卧撑、深蹲、引体向上"],
+          ["避免过量有氧", "控制长时间跑步消耗"]
+        ],
+        diet: [
+          ["提高热量", "均衡基础上适度增加总热量"],
+          ["优质蛋白", "蛋奶瘦肉鱼虾豆制品"],
+          ["碳水保证", "主食提供主要能量"],
+          ["少食多餐", "分 5-6 餐减轻肠胃负担"]
+        ]
+      },
+      { max: 25,   label: "正常", color: COLORS.normal, hint: "体重在健康范围内，继续保持！",
+        exercise: [
+          ["有氧", "快走/骑行/游泳，每周约 150 分钟"],
+          ["力量训练", "每周 2 次维持肌肉量"],
+          ["柔韧放松", "瑜伽、拉伸"]
+        ],
+        diet: [
+          ["均衡搭配", "谷薯+蛋白+蔬果+好脂肪"],
+          ["七分饱", "控油盐糖"],
+          ["多喝水", "少喝含糖饮料"],
+          ["规律三餐", "不跳早餐"]
+        ]
+      },
+      { max: 30,   label: "超重", color: COLORS.over,  hint: "体重偏高，建议增加运动、控制热量。",
+        exercise: [
+          ["有氧为主", "快走/慢跑/游泳，每周 3-5 次"],
+          ["HIIT", "身体允许可做间歇训练"],
+          ["力量保肌", "适度力量训练提升代谢"]
+        ],
+        diet: [
+          ["适度缺口", "每天约 300-500 kcal"],
+          ["多蔬果粗粮", "增加饱腹感"],
+          ["少油糖", "戒甜点含糖饮料"],
+          ["优质蛋白", "减精制碳水"]
+        ]
+      },
+      { max: 999,  label: "肥胖", color: COLORS.obese, hint: "体重过高，建议寻求专业指导。",
+        exercise: [
+          ["低冲击有氧", "游泳、骑车、水中行走护关节"],
+          ["从步行起步", "每日 10-15 分钟递增"],
+          ["专业指导", "教练/康复师指导下训练"]
+        ],
+        diet: [
+          ["严控热量", "咨询营养师定制方案"],
+          ["高纤维", "多蔬果粗粮少油糖"],
+          ["规律三餐", "避免夜宵暴饮"],
+          ["记录饮食", "APP 记录控摄入"]
+        ]
+      }
     ]
   };
 
@@ -560,6 +682,21 @@
     }
     document.getElementById("infoFat").textContent = fat ? fat.toFixed(1) + " %" : "需填写年龄";
     document.getElementById("hint").textContent = c.hint;
+
+    // 填充运动与饮食建议
+    var exUl = document.getElementById("exList");
+    var dietUl = document.getElementById("dietList");
+    exUl.innerHTML = ""; dietUl.innerHTML = "";
+    (c.exercise || []).forEach(function (it) {
+      var li = document.createElement("li");
+      li.innerHTML = '<span class="li-title">' + it[0] + "</span>：" + it[1];
+      exUl.appendChild(li);
+    });
+    (c.diet || []).forEach(function (it) {
+      var li = document.createElement("li");
+      li.innerHTML = '<span class="li-title">' + it[0] + "</span>：" + it[1];
+      dietUl.appendChild(li);
+    });
 
     document.getElementById("result").classList.add("show");
 
